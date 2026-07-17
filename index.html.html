@@ -1,0 +1,684 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta name="robots" content="noindex, nofollow">
+<title>تطبيق التدريب</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Almarai:wght@400;700;800&family=Tajawal:wght@400;500;700&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<style>
+  * { box-sizing: border-box; margin:0; padding:0; }
+  body { font-family: 'Tajawal', sans-serif; background:#fff; color:#10151C; }
+  h1,h2,h3,h4 { font-family: 'Almarai', sans-serif; }
+  button { font-family:'Tajawal',sans-serif; cursor:pointer; }
+  input, textarea, select { font-family:'Tajawal',sans-serif; }
+  #shell { max-width:480px; margin:0 auto; min-height:100vh; position:relative; padding-bottom:88px; }
+  .topbar { background:#0B1E3D; color:#fff; padding:16px 18px 14px; }
+  .roletoggle { display:flex; background:rgba(255,255,255,0.12); border-radius:10px; padding:3px; }
+  .roletoggle button { border:none; padding:6px 12px; border-radius:8px; font-size:12px; font-weight:700; background:transparent; color:#fff; }
+  .roletoggle button.active { background:#fff; color:#0B1E3D; }
+  .coachbar { margin-top:12px; background:rgba(255,255,255,0.08); border-radius:10px; padding:10px; }
+  .coachbar select, .coachbar input { background:rgba(255,255,255,0.15); color:#fff; border:none; border-radius:8px; padding:6px 8px; font-size:13px; }
+  .coachbar input::placeholder { color:rgba(255,255,255,0.6); }
+  .pill { border:none; border-radius:20px; padding:4px 12px; font-size:11.5px; font-weight:700; }
+  .bottomnav { position:fixed; bottom:0; left:0; right:0; max-width:480px; margin:0 auto; background:#fff; border-top:1px solid #EEF0F3; display:flex; padding:8px 6px; z-index:40; }
+  .navbtn { flex:1; border:none; background:transparent; display:flex; flex-direction:column; align-items:center; gap:4px; padding:6px 0; color:#9AA3AF; font-size:11px; }
+  .navbtn.active { color:#0B1E3D; font-weight:700; }
+  .card { border:1px solid #EEF0F3; border-radius:14px; margin-bottom:14px; overflow:hidden; }
+  .cardbody { padding:14px; }
+  .muscletag { font-size:11px; background:#F3F4F6; color:#4B5563; padding:3px 8px; border-radius:20px; }
+  .setrow { display:flex; align-items:center; gap:8px; padding:8px 14px; border-bottom:1px solid #F3F4F6; }
+  .setrow input[type=number] { width:52px; border:1px solid #E5E7EB; border-radius:8px; padding:6px 4px; font-size:13px; text-align:center; }
+  .doneBtn { margin-right:auto; border:none; border-radius:8px; padding:6px 12px; font-size:12px; font-weight:700; background:#0B1E3D; color:#fff; }
+  .doneBtn.done { background:#DCFCE7; color:#16A34A; }
+  .field { width:100%; border:1px solid #E5E7EB; border-radius:8px; padding:10px; font-size:14px; margin-bottom:8px; }
+  .btnPrimary { width:100%; border:none; background:#0B1E3D; color:#fff; padding:13px; border-radius:10px; font-size:14px; font-weight:700; }
+  .btnGhost { width:100%; border:1px dashed #0B1E3D; background:transparent; color:#0B1E3D; padding:12px; border-radius:12px; font-size:13.5px; font-weight:700; margin-bottom:16px; }
+  .overlay { position:fixed; inset:0; background:rgba(16,21,28,0.5); display:flex; align-items:flex-end; z-index:50; max-width:480px; margin:0 auto; }
+  .sheet { background:#fff; width:100%; border-radius:18px 18px 0 0; padding:20px; max-height:85vh; overflow-y:auto; }
+  .daytab { border:none; border-radius:20px; padding:6px 14px; font-size:12.5px; font-weight:700; white-space:nowrap; background:#F3F4F6; color:#4B5563; }
+  .daytab.active { background:#0B1E3D; color:#fff; }
+  .thumb { display:block; margin-top:10px; position:relative; border-radius:10px; overflow:hidden; aspect-ratio:16/9; background:#000; text-decoration:none; }
+  .thumb img { width:100%; height:100%; object-fit:cover; opacity:0.85; }
+  .playbtn { position:absolute; inset:0; display:flex; align-items:center; justify-content:center; }
+  .playbtn span { width:46px; height:46px; border-radius:50%; background:rgba(255,255,255,0.92); display:flex; align-items:center; justify-content:center; font-size:18px; color:#0B1E3D; }
+  .muted { color:#9AA3AF; font-size:13px; text-align:center; padding:30px 0; }
+  .lockwrap { display:flex; flex-direction:column; align-items:center; justify-content:center; padding:80px 30px; text-align:center; gap:14px; }
+  ::-webkit-scrollbar { width:0; height:0; }
+</style>
+</head>
+<body>
+<div id="shell"><div id="app">جارِ التحميل...</div></div>
+
+<script>
+/* ====================== ضع بيانات Firebase بتاعتك هنا ======================
+   روح https://console.firebase.google.com اعمل مشروع جديد، فعّل Firestore Database،
+   بعدين من إعدادات المشروع (Project settings) ضيف "Web app" وانسخ الكود اللي شكله
+   زي ده وحطه بدل القيم اللي تحت.
+*/
+const firebaseConfig = {
+  apiKey: "AIzaSyAYnI-U0HEPlsnk_60r1tkS3_vz_ibUQJ4",
+  authDomain: "online-coach-12d60.firebaseapp.com",
+  projectId: "online-coach-12d60",
+  storageBucket: "online-coach-12d60.firebasestorage.app",
+  messagingSenderId: "166065283113",
+  appId: "1:166065283113:web:6c69d0d1478b01b46e7c38"
+};
+/* ============================================================================ */
+
+firebase.initializeApp(firebaseConfig);
+const db = firebase.firestore();
+
+const MUSCLES = ["صدر", "ظهر", "أرجل", "أكتاف", "بايسبس/ترايسبس", "بطن"];
+const MEAL_TYPES = ["إفطار", "غداء", "عشاء", "سناك"];
+const todayISO = () => new Date().toISOString().slice(0,10);
+const fmtDate = (iso) => new Date(iso).toLocaleDateString("ar-EG", { day:"numeric", month:"short" });
+function youtubeId(url) {
+  if (!url) return null;
+  const m = url.match(/(?:youtu\.be\/|[?&]v=|\/embed\/|\/shorts\/)([A-Za-z0-9_-]{6,})/);
+  return m ? m[1] : null;
+}
+function videoThumbHTML(url, title) {
+  const vid = youtubeId(url);
+  if (vid) {
+    return `<a class="thumb" href="${url}" target="_blank" rel="noreferrer">
+      <img src="https://img.youtube.com/vi/${vid}/hqdefault.jpg" alt="${title}">
+      <div class="playbtn"><span>▶</span></div>
+    </a>`;
+  }
+  if (url) return `<a href="${url}" target="_blank" rel="noreferrer" style="display:block;margin-top:10px;background:#F9FAFB;border-radius:10px;padding:12px;font-size:12.5px;color:#0B1E3D;font-weight:700;text-decoration:none;">▶ افتح الفيديو</a>`;
+  return `<div style="margin-top:10px;background:#F9FAFB;border-radius:10px;padding:12px;font-size:12px;color:#9AA3AF;">لا يوجد رابط فيديو بعد.</div>`;
+}
+
+let state = {
+  role: "client", view: "today", day: 1,
+  clients: [], library: [], programs: [], logs: [], checkins: [],
+  meals: [], mealLogs: [], mealSwap: {},
+  activeClientId: localStorage.getItem("gymapp_activeClientId") || null,
+  myClientId: localStorage.getItem("gymapp_myClientId") || null,
+  pendingLoginId: null, loginError: "",
+  restTimer: null, restTick: null,
+  modal: null,
+};
+
+let seededClients = false, seededLibrary = false;
+let chartRef = null;
+
+function initListeners() {
+  db.collection("clients").onSnapshot((snap) => {
+    state.clients = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+    if (!state.clients.length && !seededClients) {
+      seededClients = true;
+      db.collection("clients").add({ name: "بيبو", password: "", subscriptionActive: true, coachNote: "" });
+    }
+    render();
+  });
+  db.collection("library").onSnapshot((snap) => {
+    state.library = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+    if (!state.library.length && !seededLibrary) {
+      seededLibrary = true;
+      const seed = [
+        { name: "سكوات بار", muscle: "أرجل", videoUrl: "", note: "حافظ على استقامة الظهر، انزل حتى يصبح الفخذ موازي للأرض." },
+        { name: "بنش برس", muscle: "صدر", videoUrl: "", note: "ثبّت الكتفين على البنش." },
+        { name: "ديدليفت", muscle: "ظهر", videoUrl: "", note: "الظهر مستقيم طوال الحركة." },
+        { name: "بلانك", muscle: "بطن", videoUrl: "", note: "حافظ على استقامة الجسم." },
+      ];
+      seed.forEach((e) => db.collection("library").add(e));
+    }
+    render();
+  });
+  db.collection("programs").onSnapshot((snap) => { state.programs = snap.docs.map((d) => ({ id: d.id, ...d.data() })); render(); });
+  db.collection("logs").onSnapshot((snap) => { state.logs = snap.docs.map((d) => ({ id: d.id, ...d.data() })); render(); });
+  db.collection("checkins").onSnapshot((snap) => { state.checkins = snap.docs.map((d) => ({ id: d.id, ...d.data() })); render(); });
+  db.collection("meals").onSnapshot((snap) => { state.meals = snap.docs.map((d) => ({ id: d.id, ...d.data() })); render(); });
+  db.collection("mealLogs").onSnapshot((snap) => { state.mealLogs = snap.docs.map((d) => ({ id: d.id, ...d.data() })); render(); });
+}
+
+// ---------- CRUD helpers ----------
+const addClient = (name, password) => db.collection("clients").add({ name, password: password || "", subscriptionActive: true, coachNote: "" });
+const updateClient = (id, fields) => db.collection("clients").doc(id).update(fields);
+const addExercise = (data) => db.collection("library").add(data);
+const updateExercise = (id, data) => db.collection("library").doc(id).update(data);
+const addProgramItem = (data) => db.collection("programs").add(data);
+const updateProgramItem = (id, data) => db.collection("programs").doc(id).update(data);
+const deleteProgramItem = (id) => db.collection("programs").doc(id).delete();
+const addLog = (data) => db.collection("logs").add(data);
+const addCheckin = (data) => db.collection("checkins").add(data);
+const addMeal = (data) => db.collection("meals").add(data);
+const updateMeal = (id, data) => db.collection("meals").doc(id).update(data);
+const deleteMeal = (id) => db.collection("meals").doc(id).delete();
+const addMealLog = (data) => db.collection("mealLogs").add(data);
+
+function setActiveClient(id) { state.activeClientId = id; localStorage.setItem("gymapp_activeClientId", id); render(); }
+function setMyClient(id) { state.myClientId = id; localStorage.setItem("gymapp_myClientId", id); render(); }
+function logoutClient() { state.myClientId = null; localStorage.removeItem("gymapp_myClientId"); render(); }
+
+// ---------- Rest timer ----------
+function startRest(seconds) {
+  if (state.restTick) clearInterval(state.restTick);
+  state.restTimer = { seconds, total: seconds };
+  render();
+  state.restTick = setInterval(() => {
+    state.restTimer.seconds--;
+    if (state.restTimer.seconds <= 0) { clearInterval(state.restTick); state.restTick = null; setTimeout(() => { state.restTimer = null; render(); }, 400); }
+    render();
+  }, 1000);
+}
+function closeRest() { if (state.restTick) clearInterval(state.restTick); state.restTick = null; state.restTimer = null; render(); }
+
+// ---------- Render ----------
+function render() {
+  const viewClientId = state.role === "coach" ? state.activeClientId : state.myClientId;
+  if (state.role === "coach" && !state.activeClientId && state.clients[0]) state.activeClientId = state.clients[0].id;
+  const viewClient = state.clients.find((c) => c.id === viewClientId);
+  const needsLogin = state.role === "client" && !state.myClientId;
+  const locked = state.role === "client" && viewClient && !viewClient.subscriptionActive;
+
+  let html = renderTopBar(viewClient);
+  if (needsLogin) html += renderLogin();
+  else if (locked) html += renderLock();
+  else {
+    html += `<div style="padding:16px 16px 0;">`;
+    if (state.view === "today") html += renderToday(viewClientId, viewClient);
+    if (state.view === "nutrition") html += renderNutrition(viewClientId);
+    if (state.view === "library") html += renderLibrary();
+    if (state.view === "progress") html += renderProgress(viewClientId);
+    if (state.view === "feedback") html += renderFeedback(viewClientId);
+    html += `</div>`;
+    html += renderBottomNav();
+  }
+  html += renderModals(viewClientId);
+  if (state.restTimer) html += renderRestOverlay();
+
+  document.getElementById("app").innerHTML = html;
+  bindEvents(viewClientId);
+  if (state.view === "progress" && !needsLogin && !locked) drawChart(viewClientId);
+}
+
+function renderTopBar(viewClient) {
+  let coachBar = "";
+  if (state.role === "coach") {
+    coachBar = `<div class="coachbar">
+      <div style="display:flex;align-items:center;gap:8px;">
+        <select id="clientSelect" style="flex:1;">
+          ${state.clients.map((c) => `<option value="${c.id}" ${c.id === state.activeClientId ? "selected" : ""}>${c.name}</option>`).join("")}
+        </select>
+        <button id="toggleAddClient" style="border:none;background:rgba(255,255,255,0.15);color:#fff;border-radius:8px;padding:6px 10px;">+</button>
+      </div>
+      <div id="addClientBox" style="display:none;margin-top:8px;">
+        <input id="newClientName" class="field" placeholder="اسم العميل الجديد" style="margin-bottom:6px;color:#000;">
+        <input id="newClientPw" class="field" placeholder="باسورد (اختياري)" style="margin-bottom:6px;color:#000;">
+        <button id="saveNewClient" class="btnPrimary" style="padding:8px;">إضافة</button>
+      </div>
+      ${viewClient ? `
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-top:8px;">
+        <span style="font-size:12.5px;">حالة الاشتراك</span>
+        <button id="toggleSub" class="pill" style="background:${viewClient.subscriptionActive ? "#fff" : "#ef4444"};color:${viewClient.subscriptionActive ? "#0B1E3D" : "#fff"};">${viewClient.subscriptionActive ? "فعال" : "منتهي"}</button>
+      </div>
+      <div style="display:flex;align-items:center;gap:6px;margin-top:8px;">
+        <span style="font-size:12.5px;white-space:nowrap;">باسورد العميل</span>
+        <input id="clientPwEdit" value="${viewClient.password || ""}" placeholder="بدون باسورد" style="flex:1;border:none;border-radius:8px;padding:5px 8px;font-size:12.5px;color:#000;">
+      </div>` : ""}
+    </div>`;
+  }
+  return `<div class="topbar">
+    <div style="display:flex;justify-content:space-between;align-items:center;">
+      <div><div style="font-size:12px;opacity:0.7;">مرحباً</div><h1 style="font-size:20px;font-weight:800;">${viewClient ? viewClient.name : "—"}</h1></div>
+      <div class="roletoggle">
+        <button data-role="client" class="${state.role === "client" ? "active" : ""}">العميل</button>
+        <button data-role="coach" class="${state.role === "coach" ? "active" : ""}">المدرب</button>
+      </div>
+    </div>
+    ${coachBar}
+  </div>`;
+}
+
+function renderLogin() {
+  if (!state.pendingLoginId) {
+    return `<div style="padding:60px 24px;text-align:center;">
+      <h2 style="font-size:17px;margin-bottom:6px;">انت مين؟</h2>
+      <p style="font-size:12.5px;color:#9AA3AF;margin-bottom:20px;">اختار اسمك.</p>
+      ${state.clients.map((c) => `<button data-pick="${c.id}" style="display:block;width:100%;border:1px solid #EEF0F3;background:#F9FAFB;border-radius:12px;padding:14px;margin-bottom:10px;font-size:14px;font-weight:700;color:#0B1E3D;">${c.name}</button>`).join("")}
+    </div>`;
+  }
+  const c = state.clients.find((x) => x.id === state.pendingLoginId);
+  return `<div style="padding:60px 24px;text-align:center;">
+    <h2 style="font-size:17px;margin-bottom:6px;">أهلاً ${c ? c.name : ""}</h2>
+    <p style="font-size:12.5px;color:#9AA3AF;margin-bottom:20px;">اكتب الباسورد.</p>
+    <input id="loginPw" type="password" class="field" style="text-align:center;">
+    ${state.loginError ? `<div style="color:#ef4444;font-size:12.5px;margin-bottom:8px;">${state.loginError}</div>` : ""}
+    <button id="loginSubmit" class="btnPrimary" style="margin-bottom:8px;">دخول</button>
+    <button id="loginBack" style="border:none;background:transparent;color:#9AA3AF;font-size:12.5px;padding:6px;">رجوع</button>
+  </div>`;
+}
+
+function renderLock() {
+  return `<div class="lockwrap"><h2 style="font-size:18px;">انتهى اشتراكك</h2><p style="color:#6B7280;font-size:14px;line-height:1.8;">تواصل مع مدربك لتجديد الاشتراك.</p></div>`;
+}
+
+function renderBottomNav() {
+  const items = [["today","اليوم"],["nutrition","التغذية"],["library","المكتبة"],["progress","تقدمي"],["feedback","المتابعة"]];
+  return `<div class="bottomnav">${items.map(([k,l]) => `<button data-view="${k}" class="navbtn ${state.view===k?"active":""}">${l}</button>`).join("")}</div>`;
+}
+
+function renderToday(clientId, viewClient) {
+  const myPrograms = state.programs.filter((p) => p.clientId === clientId);
+  const days = Array.from(new Set(myPrograms.map((p) => p.day))).sort((a,b)=>a-b);
+  if (!days.includes(1)) days.unshift(1);
+  const dayItems = myPrograms.filter((p) => p.day === state.day).sort((a,b)=>a.order-b.order);
+  const myLogs = state.logs.filter((l) => l.clientId === clientId);
+
+  let html = `<div style="background:#F3F4F6;border-right:4px solid #0B1E3D;border-radius:10px;padding:14px;margin-bottom:16px;">
+    <div style="display:flex;justify-content:space-between;">
+      <div style="font-size:12px;font-weight:700;color:#0B1E3D;margin-bottom:4px;">ركن المدرب</div>
+      ${state.role==="coach" ? `<button id="editNoteBtn" style="border:none;background:transparent;">✏️</button>` : ""}
+    </div>
+    <div id="noteView">${state.editingNote ? `<textarea id="noteInput" class="field" style="min-height:60px;">${viewClient ? viewClient.coachNote||"" : ""}</textarea><button id="saveNoteBtn" class="btnPrimary" style="padding:8px;margin-top:6px;">حفظ</button>` : `<p style="font-size:13.5px;color:#374151;line-height:1.7;">${viewClient && viewClient.coachNote ? viewClient.coachNote : "لا توجد ملاحظة بعد."}</p>`}</div>
+  </div>`;
+
+  html += `<div style="display:flex;gap:6px;margin-bottom:14px;overflow-x:auto;">`;
+  days.forEach((d) => { html += `<button data-day="${d}" class="daytab ${state.day===d?"active":""}">يوم ${d}</button>`; });
+  if (state.role === "coach") html += `<button id="addDayBtn" data-nextday="${Math.max(...days,0)+1}" style="border:1px dashed #D1D5DB;border-radius:20px;padding:6px 12px;font-size:12.5px;background:transparent;color:#9AA3AF;">+</button>`;
+  html += `</div>`;
+
+  if (!dayItems.length) html += `<div class="muted">لسه مفيش تمارين في اليوم ده.</div>`;
+
+  dayItems.forEach((item) => {
+    const ex = state.library.find((e) => e.id === item.exerciseId);
+    if (!ex) return;
+    const exLogs = myLogs.filter((l) => l.exerciseId === item.exerciseId).sort((a,b)=>b.date.localeCompare(a.date));
+    const last = exLogs[0];
+    const setsCount = item.sets;
+    html += `<div style="position:relative;">`;
+    if (state.role === "coach") {
+      html += `<div style="position:absolute;top:10px;left:10px;z-index:5;display:flex;gap:6px;">
+        <button data-editprog="${item.id}" style="border:none;background:#fff;border-radius:6px;padding:4px;box-shadow:0 1px 3px rgba(0,0,0,0.15);">✏️</button>
+        <button data-delprog="${item.id}" style="border:none;background:#fff;border-radius:6px;padding:4px;box-shadow:0 1px 3px rgba(0,0,0,0.15);">✕</button>
+      </div>`;
+    }
+    html += `<div class="card"><div class="cardbody">
+      <div style="display:flex;justify-content:space-between;align-items:center;">
+        <h4 style="font-size:15.5px;">${ex.name}</h4><span class="muscletag">${ex.muscle}</span>
+      </div>
+      ${last ? `<div style="font-size:12px;color:#6B7280;margin-top:4px;">آخر مرة: ${last.sets?.[last.sets.length-1]?.weight||"-"} كجم × ${last.sets?.[last.sets.length-1]?.reps||"-"} (${fmtDate(last.date)})</div>` : ""}
+      <div style="font-size:12px;color:#9AA3AF;margin-top:4px;">${item.sets} مجموعات × ${item.reps} عدة · راحة ${item.rest}ث · تمبو ${item.tempo}</div>
+      ${videoThumbHTML(ex.videoUrl, ex.name)}
+      ${ex.note ? `<div style="margin-top:10px;font-size:12.5px;color:#374151;background:#F9FAFB;border-radius:8px;padding:8px 10px;">💡 ${ex.note}</div>` : ""}
+    </div>
+    <div style="border-top:1px solid #EEF0F3;" id="setsWrap-${item.id}" data-progid="${item.id}" data-rest="${item.rest}">
+      ${Array.from({length:setsCount}).map((_,i) => `
+        <div class="setrow" data-set="${i}">
+          <span style="font-size:12px;color:#9AA3AF;width:40px;">مجموعة ${i+1}</span>
+          <input type="number" class="weightInput" placeholder="كجم">
+          <input type="number" class="repsInput" value="${item.reps}">
+          <span style="font-size:11px;color:#9AA3AF;">عدة</span>
+          <button class="doneBtn" data-done="${i}" data-last="${i===setsCount-1?1:0}">تم</button>
+        </div>`).join("")}
+    </div></div></div>`;
+  });
+
+  if (state.role === "coach") html += `<button id="addExToProgram" class="btnGhost">+ إضافة تمرين لليوم ده</button>`;
+  return html;
+}
+
+function renderNutrition(clientId) {
+  const myMeals = state.meals.filter((m) => m.clientId === clientId);
+  const days = Array.from(new Set(myMeals.map((m) => m.day))).sort((a,b)=>a-b);
+  if (!days.includes(1)) days.unshift(1);
+  const dayMeals = myMeals.filter((m) => m.day === state.day);
+  const today = todayISO();
+  const myLogsToday = state.mealLogs.filter((l) => l.clientId === clientId && l.date === today);
+
+  let totals = { calories:0, protein:0, carb:0, fat:0 };
+  myLogsToday.forEach((l) => { totals.calories += Number(l.calories)||0; totals.protein += Number(l.protein)||0; totals.carb += Number(l.carb)||0; totals.fat += Number(l.fat)||0; });
+
+  let html = `<div style="display:flex;gap:6px;margin-bottom:14px;overflow-x:auto;">`;
+  days.forEach((d) => { html += `<button data-day="${d}" class="daytab ${state.day===d?"active":""}">يوم ${d}</button>`; });
+  if (state.role === "coach") html += `<button id="addNutriDayBtn" data-nextday="${Math.max(...days,0)+1}" style="border:1px dashed #D1D5DB;border-radius:20px;padding:6px 12px;font-size:12.5px;background:transparent;color:#9AA3AF;">+</button>`;
+  html += `</div>`;
+
+  html += `<div style="background:#0B1E3D;color:#fff;border-radius:12px;padding:14px;margin-bottom:16px;display:flex;justify-content:space-between;text-align:center;">
+    <div><div style="font-size:16px;font-weight:800;">${Math.round(totals.calories)}</div><div style="font-size:10.5px;opacity:0.7;">سعرة</div></div>
+    <div><div style="font-size:16px;font-weight:800;">${Math.round(totals.protein)}g</div><div style="font-size:10.5px;opacity:0.7;">بروتين</div></div>
+    <div><div style="font-size:16px;font-weight:800;">${Math.round(totals.carb)}g</div><div style="font-size:10.5px;opacity:0.7;">كارب</div></div>
+    <div><div style="font-size:16px;font-weight:800;">${Math.round(totals.fat)}g</div><div style="font-size:10.5px;opacity:0.7;">دهون</div></div>
+  </div>`;
+
+  MEAL_TYPES.forEach((mt) => {
+    const items = dayMeals.filter((m) => m.mealType === mt);
+    if (!items.length && state.role !== "coach") return;
+    html += `<h4 style="font-size:13.5px;color:#6B7280;margin:14px 0 8px;">${mt}</h4>`;
+    if (!items.length) html += `<div class="muted" style="padding:12px 0;">لسه مفيش وجبة مضافة.</div>`;
+    items.forEach((meal) => {
+      const swapIdx = state.mealSwap[meal.id] || 0;
+      const versions = [{ name: meal.name, calories: meal.calories, protein: meal.protein, carb: meal.carb, fat: meal.fat }];
+      if (meal.alt1Name) versions.push({ name: meal.alt1Name, calories: meal.alt1Cal, protein: meal.alt1Pro, carb: meal.alt1Carb, fat: meal.alt1Fat });
+      if (meal.alt2Name) versions.push({ name: meal.alt2Name, calories: meal.alt2Cal, protein: meal.alt2Pro, carb: meal.alt2Carb, fat: meal.alt2Fat });
+      const v = versions[swapIdx] || versions[0];
+      const eaten = myLogsToday.some((l) => l.mealId === meal.id);
+      html += `<div style="position:relative;">`;
+      if (state.role === "coach") {
+        html += `<div style="position:absolute;top:10px;left:10px;z-index:5;display:flex;gap:6px;">
+          <button data-editmeal="${meal.id}" style="border:none;background:#fff;border-radius:6px;padding:4px;box-shadow:0 1px 3px rgba(0,0,0,0.15);">✏️</button>
+          <button data-delmeal="${meal.id}" style="border:none;background:#fff;border-radius:6px;padding:4px;box-shadow:0 1px 3px rgba(0,0,0,0.15);">✕</button>
+        </div>`;
+      }
+      html += `<div class="card"><div class="cardbody" style="opacity:${eaten?0.6:1};">
+        <h4 style="font-size:15px;">${v.name}</h4>
+        <div style="font-size:12px;color:#6B7280;margin-top:4px;">${v.calories||0} سعرة · بروتين ${v.protein||0}g · كارب ${v.carb||0}g · دهون ${v.fat||0}g</div>
+        <div style="display:flex;gap:8px;margin-top:10px;">
+          ${versions.length>1 ? `<button data-swap="${meal.id}" data-count="${versions.length}" style="flex:1;border:1px solid #0B1E3D;background:transparent;color:#0B1E3D;padding:8px;border-radius:8px;font-size:12.5px;font-weight:700;">استبدال</button>` : ""}
+          <button data-eat="${meal.id}" data-eaten="${eaten?1:0}" style="flex:1;border:none;background:${eaten?"#DCFCE7":"#0B1E3D"};color:${eaten?"#16A34A":"#fff"};padding:8px;border-radius:8px;font-size:12.5px;font-weight:700;" ${eaten?"disabled":""}>${eaten?"✓ اتأكل":"تم الأكل"}</button>
+        </div>
+      </div></div></div>`;
+    });
+  });
+
+  if (state.role === "coach") html += `<button id="addMealBtn" class="btnGhost">+ إضافة وجبة لليوم ده</button>`;
+  return html;
+}
+
+function renderLibrary() {
+  let html = `<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+    <h3 style="font-size:16px;">موسوعة التمارين</h3>
+    ${state.role==="coach" ? `<button id="addExerciseBtn" style="border:none;background:#0B1E3D;color:#fff;border-radius:8px;padding:6px 10px;font-size:12px;">+ تمرين جديد</button>` : ""}
+  </div>`;
+  MUSCLES.forEach((muscle) => {
+    const items = state.library.filter((e) => e.muscle === muscle);
+    if (!items.length) return;
+    const open = state.openMuscle ? state.openMuscle === muscle : muscle === MUSCLES[0];
+    html += `<div style="margin-bottom:8px;border:1px solid #EEF0F3;border-radius:12px;overflow:hidden;">
+      <button data-muscle="${muscle}" style="width:100%;border:none;background:#F9FAFB;padding:12px 14px;display:flex;justify-content:space-between;">
+        <span style="font-size:14px;font-weight:700;">${muscle}</span><span>${open?"▲":"▼"}</span>
+      </button>
+      ${open ? items.map((ex) => `<button data-openex="${ex.id}" style="width:100%;border:none;background:#fff;border-top:1px solid #F3F4F6;padding:12px 14px;display:flex;justify-content:space-between;text-align:right;"><span style="font-size:13.5px;">${ex.name}</span><span>▶</span></button>`).join("") : ""}
+    </div>`;
+  });
+  return html;
+}
+
+function renderProgress(clientId) {
+  const myLogs = state.logs.filter((l) => l.clientId === clientId);
+  const exId = state.progressExerciseId || (state.library[0] && state.library[0].id);
+  return `<h3 style="font-size:16px;margin-bottom:12px;">تقدمي</h3>
+    <select id="progressExSelect" class="field">${state.library.map((e) => `<option value="${e.id}" ${e.id===exId?"selected":""}>${e.name}</option>`).join("")}</select>
+    <div style="height:260px;background:#F9FAFB;border-radius:12px;padding:16px 8px;">
+      <canvas id="progressCanvas"></canvas>
+    </div>`;
+}
+
+function drawChart(clientId) {
+  const exId = state.progressExerciseId || (state.library[0] && state.library[0].id);
+  const data = state.logs.filter((l) => l.clientId === clientId && l.exerciseId === exId)
+    .sort((a,b) => a.date.localeCompare(b.date))
+    .map((l) => ({ date: fmtDate(l.date), weight: Math.max(...(l.sets||[]).map((s)=>Number(s.weight)||0)) }));
+  const canvas = document.getElementById("progressCanvas");
+  if (!canvas) return;
+  if (chartRef) chartRef.destroy();
+  if (data.length < 2) { canvas.parentElement.innerHTML = `<div class="muted">سجّل هذا التمرين مرتين على الأقل عشان يظهر الرسم البياني.</div>`; return; }
+  chartRef = new Chart(canvas.getContext("2d"), {
+    type: "line",
+    data: { labels: data.map((d)=>d.date), datasets: [{ label:"الوزن", data: data.map((d)=>d.weight), borderColor:"#0B1E3D", backgroundColor:"#0B1E3D", tension:0.3 }] },
+    options: { plugins:{ legend:{display:false} }, scales:{ y:{ beginAtZero:false } } }
+  });
+}
+
+function renderFeedback(clientId) {
+  const mine = state.checkins.filter((c) => c.clientId === clientId).sort((a,b)=>b.date.localeCompare(a.date));
+  return `<h3 style="font-size:16px;margin-bottom:12px;">المتابعة الدورية</h3>
+    <div style="border:1px solid #EEF0F3;border-radius:12px;padding:14px;margin-bottom:20px;">
+      <input id="ciWeight" class="field" placeholder="الوزن الحالي (كجم)">
+      <input id="ciWaist" class="field" placeholder="قياس الوسط (سم)">
+      <input id="ciArm" class="field" placeholder="قياس الذراع (سم)">
+      <input id="ciThigh" class="field" placeholder="قياس الفخذ (سم)">
+      <input id="ciPhoto" class="field" placeholder="رابط صورة الجسم">
+      <button id="ciSave" class="btnPrimary">حفظ المتابعة</button>
+    </div>
+    ${mine.map((c) => `<div style="border-bottom:1px solid #F3F4F6;padding:10px 2px;">
+      <div style="display:flex;justify-content:space-between;font-size:13px;"><span style="font-weight:700;">${c.weight} كجم</span><span style="color:#9AA3AF;">${fmtDate(c.date)}</span></div>
+      <div style="font-size:11.5px;color:#6B7280;margin-top:2px;">وسط ${c.waist||"-"} · ذراع ${c.arm||"-"} · فخذ ${c.thigh||"-"}</div>
+    </div>`).join("")}`;
+}
+
+function renderRestOverlay() {
+  const t = state.restTimer;
+  const pct = t.total ? (t.total - t.seconds) / t.total : 1;
+  const r = 54, c = 2*Math.PI*r;
+  return `<div style="position:fixed;inset:0;background:rgba(11,30,61,0.94);display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:60;max-width:480px;margin:0 auto;color:#fff;">
+    <div style="font-size:13px;opacity:0.7;margin-bottom:10px;">وقت الراحة</div>
+    <svg width="140" height="140" style="transform:rotate(-90deg);">
+      <circle cx="70" cy="70" r="${r}" stroke="rgba(255,255,255,0.15)" stroke-width="8" fill="none"/>
+      <circle cx="70" cy="70" r="${r}" stroke="#fff" stroke-width="8" fill="none" stroke-dasharray="${c}" stroke-dashoffset="${c*(1-pct)}" stroke-linecap="round"/>
+    </svg>
+    <div style="font-size:34px;font-weight:800;margin-top:-95px;font-family:Almarai;">${t.seconds}</div>
+    <button id="skipRest" style="margin-top:110px;border:1px solid rgba(255,255,255,0.4);background:transparent;color:#fff;padding:8px 22px;border-radius:20px;font-size:13px;">تخطي</button>
+  </div>`;
+}
+
+function renderModals(clientId) {
+  if (!state.modal) return "";
+  const m = state.modal;
+  if (m.type === "rpe") {
+    return `<div class="overlay"><div class="sheet">
+      <h3 style="font-size:16px;">قيّم صعوبة التمرين</h3>
+      <p style="font-size:12.5px;color:#6B7280;margin-top:-6px;">من 1 إلى 10</p>
+      <div style="display:flex;align-items:center;gap:12px;">
+        <input id="rpeRange" type="range" min="1" max="10" value="${m.rpe||7}" style="flex:1;">
+        <span id="rpeVal" style="font-family:Almarai;font-weight:800;font-size:20px;color:#0B1E3D;width:28px;text-align:center;">${m.rpe||7}</span>
+      </div>
+      <button id="rpeSave" class="btnPrimary" style="margin-top:16px;">حفظ</button>
+    </div></div>`;
+  }
+  if (m.type === "addExercise" || m.type === "editExercise") {
+    const ex = m.exercise || { name:"", muscle:MUSCLES[0], videoUrl:"", note:"" };
+    return `<div class="overlay"><div class="sheet">
+      <div style="display:flex;justify-content:flex-end;"><button id="closeModal" style="border:none;background:transparent;font-size:18px;">✕</button></div>
+      <input id="exName" class="field" placeholder="اسم التمرين" value="${ex.name}">
+      <select id="exMuscle" class="field">${MUSCLES.map((mm)=>`<option value="${mm}" ${mm===ex.muscle?"selected":""}>${mm}</option>`).join("")}</select>
+      <input id="exVideo" class="field" placeholder="رابط فيديو يوتيوب" value="${ex.videoUrl||""}">
+      <textarea id="exNote" class="field" style="min-height:70px;">${ex.note||""}</textarea>
+      <button id="saveExercise" class="btnPrimary">${m.type==="addExercise"?"إضافة":"حفظ"}</button>
+    </div></div>`;
+  }
+  if (m.type === "viewExercise") {
+    const ex = m.exercise;
+    return `<div class="overlay"><div class="sheet">
+      <div style="display:flex;justify-content:flex-end;"><button id="closeModal" style="border:none;background:transparent;font-size:18px;">✕</button></div>
+      <h3 style="margin:4px 0 2px;">${ex.name}</h3><span style="font-size:12px;color:#0B1E3D;font-weight:700;">${ex.muscle}</span>
+      ${videoThumbHTML(ex.videoUrl, ex.name)}
+      ${ex.note ? `<p style="font-size:13.5px;color:#374151;background:#F9FAFB;border-radius:8px;padding:10px;margin-top:12px;">💡 ${ex.note}</p>` : ""}
+      ${state.role==="coach" ? `<button id="editThisEx" data-id="${ex.id}" style="margin-top:10px;border:1px solid #0B1E3D;background:transparent;color:#0B1E3D;padding:8px 14px;border-radius:8px;font-size:13px;">✏️ تعديل</button>` : ""}
+    </div></div>`;
+  }
+  if (m.type === "addProgram" || m.type === "editProgram") {
+    const it = m.item || { exerciseId: state.library[0]?.id, sets:3, reps:10, rest:60, tempo:"2-0-2" };
+    return `<div class="overlay"><div class="sheet">
+      <div style="display:flex;justify-content:space-between;"><h3 style="font-size:15px;">${m.type==="addProgram"?"إضافة تمرين":"تعديل التمرين"}</h3><button id="closeModal" style="border:none;background:transparent;font-size:18px;">✕</button></div>
+      <label style="font-size:12px;color:#6B7280;">التمرين</label>
+      <select id="progExercise" class="field">${state.library.map((e)=>`<option value="${e.id}" ${e.id===it.exerciseId?"selected":""}>${e.name}</option>`).join("")}</select>
+      <div style="display:flex;gap:8px;"><div style="flex:1;"><label style="font-size:12px;color:#6B7280;">مجاميع</label><input id="progSets" type="number" class="field" value="${it.sets}"></div>
+      <div style="flex:1;"><label style="font-size:12px;color:#6B7280;">عدات</label><input id="progReps" type="number" class="field" value="${it.reps}"></div></div>
+      <div style="display:flex;gap:8px;"><div style="flex:1;"><label style="font-size:12px;color:#6B7280;">راحة (ثانية)</label><input id="progRest" type="number" class="field" value="${it.rest}"></div>
+      <div style="flex:1;"><label style="font-size:12px;color:#6B7280;">تمبو</label><input id="progTempo" class="field" value="${it.tempo}"></div></div>
+      <button id="saveProgram" class="btnPrimary">${m.type==="addProgram"?"إضافة للبرنامج":"حفظ التعديل"}</button>
+    </div></div>`;
+  }
+  if (m.type === "addMeal" || m.type === "editMeal") {
+    const meal = m.meal || { mealType: MEAL_TYPES[0], name:"", calories:"", protein:"", carb:"", fat:"", alt1Name:"", alt1Cal:"", alt1Pro:"", alt1Carb:"", alt1Fat:"", alt2Name:"", alt2Cal:"", alt2Pro:"", alt2Carb:"", alt2Fat:"" };
+    return `<div class="overlay"><div class="sheet">
+      <div style="display:flex;justify-content:space-between;"><h3 style="font-size:15px;">${m.type==="addMeal"?"إضافة وجبة":"تعديل الوجبة"}</h3><button id="closeModal" style="border:none;background:transparent;font-size:18px;">✕</button></div>
+      <label style="font-size:12px;color:#6B7280;">نوع الوجبة</label>
+      <select id="mealType" class="field">${MEAL_TYPES.map((t)=>`<option value="${t}" ${t===meal.mealType?"selected":""}>${t}</option>`).join("")}</select>
+      <input id="mealName" class="field" placeholder="اسم الوجبة" value="${meal.name}">
+      <div style="display:flex;gap:6px;">
+        <input id="mealCal" type="number" class="field" placeholder="سعرات" value="${meal.calories}">
+        <input id="mealPro" type="number" class="field" placeholder="بروتين" value="${meal.protein}">
+        <input id="mealCarb" type="number" class="field" placeholder="كارب" value="${meal.carb}">
+        <input id="mealFat" type="number" class="field" placeholder="دهون" value="${meal.fat}">
+      </div>
+      <p style="font-size:12px;color:#9AA3AF;margin:10px 0 6px;">بديل 1 (اختياري)</p>
+      <input id="alt1Name" class="field" placeholder="اسم البديل" value="${meal.alt1Name||""}">
+      <div style="display:flex;gap:6px;">
+        <input id="alt1Cal" type="number" class="field" placeholder="سعرات" value="${meal.alt1Cal||""}">
+        <input id="alt1Pro" type="number" class="field" placeholder="بروتين" value="${meal.alt1Pro||""}">
+        <input id="alt1Carb" type="number" class="field" placeholder="كارب" value="${meal.alt1Carb||""}">
+        <input id="alt1Fat" type="number" class="field" placeholder="دهون" value="${meal.alt1Fat||""}">
+      </div>
+      <p style="font-size:12px;color:#9AA3AF;margin:10px 0 6px;">بديل 2 (اختياري)</p>
+      <input id="alt2Name" class="field" placeholder="اسم البديل" value="${meal.alt2Name||""}">
+      <div style="display:flex;gap:6px;">
+        <input id="alt2Cal" type="number" class="field" placeholder="سعرات" value="${meal.alt2Cal||""}">
+        <input id="alt2Pro" type="number" class="field" placeholder="بروتين" value="${meal.alt2Pro||""}">
+        <input id="alt2Carb" type="number" class="field" placeholder="كارب" value="${meal.alt2Carb||""}">
+        <input id="alt2Fat" type="number" class="field" placeholder="دهون" value="${meal.alt2Fat||""}">
+      </div>
+      <button id="saveMeal" class="btnPrimary" style="margin-top:8px;">${m.type==="addMeal"?"إضافة":"حفظ"}</button>
+    </div></div>`;
+  }
+  if (m.type === "swapMeal") {
+    return `<div class="overlay"><div class="sheet">
+      <h3 style="font-size:15px;margin-bottom:10px;">اختار النسخة</h3>
+      ${m.versions.map((v,i) => `<button data-pickswap="${i}" style="display:block;width:100%;text-align:right;border:1px solid #EEF0F3;background:${i===m.current?"#F3F4F6":"#fff"};border-radius:10px;padding:12px;margin-bottom:8px;font-size:13.5px;">${v.name} <span style="color:#9AA3AF;font-size:11.5px;">(${v.calories||0} سعرة)</span></button>`).join("")}
+    </div></div>`;
+  }
+  return "";
+}
+
+// ---------- Events ----------
+function bindEvents(clientId) {
+  document.querySelectorAll("[data-role]").forEach((b) => b.onclick = () => { state.role = b.dataset.role; state.pendingLoginId=null; state.loginError=""; render(); });
+  document.querySelectorAll("[data-view]").forEach((b) => b.onclick = () => { state.view = b.dataset.view; render(); });
+  document.querySelectorAll("[data-day]").forEach((b) => b.onclick = () => { state.day = Number(b.dataset.day); render(); });
+  const addDayBtn = document.getElementById("addDayBtn"); if (addDayBtn) addDayBtn.onclick = () => { state.day = Number(addDayBtn.dataset.nextday); render(); };
+  const addNutriDayBtn = document.getElementById("addNutriDayBtn"); if (addNutriDayBtn) addNutriDayBtn.onclick = () => { state.day = Number(addNutriDayBtn.dataset.nextday); render(); };
+
+  const clientSelect = document.getElementById("clientSelect"); if (clientSelect) clientSelect.onchange = (e) => setActiveClient(e.target.value);
+  const toggleAdd = document.getElementById("toggleAddClient"); if (toggleAdd) toggleAdd.onclick = () => { const box=document.getElementById("addClientBox"); box.style.display = box.style.display==="none"?"block":"none"; };
+  const saveNewClient = document.getElementById("saveNewClient"); if (saveNewClient) saveNewClient.onclick = () => {
+    const name = document.getElementById("newClientName").value.trim();
+    const pw = document.getElementById("newClientPw").value.trim();
+    if (!name) return;
+    addClient(name, pw).then((ref) => setActiveClient(ref.id));
+  };
+  const toggleSub = document.getElementById("toggleSub"); if (toggleSub) toggleSub.onclick = () => { const c = state.clients.find(x=>x.id===state.activeClientId); updateClient(c.id, { subscriptionActive: !c.subscriptionActive }); };
+  const pwEdit = document.getElementById("clientPwEdit"); if (pwEdit) pwEdit.onblur = (e) => updateClient(state.activeClientId, { password: e.target.value });
+
+  document.querySelectorAll("[data-pick]").forEach((b) => b.onclick = () => { state.pendingLoginId = b.dataset.pick; state.loginError=""; render(); });
+  const loginSubmit = document.getElementById("loginSubmit"); if (loginSubmit) loginSubmit.onclick = () => {
+    const c = state.clients.find((x) => x.id === state.pendingLoginId);
+    const pw = document.getElementById("loginPw").value;
+    if (!c.password || pw === c.password) { setMyClient(c.id); state.pendingLoginId=null; }
+    else { state.loginError = "الباسورد غلط، جرّب تاني."; render(); }
+  };
+  const loginBack = document.getElementById("loginBack"); if (loginBack) loginBack.onclick = () => { state.pendingLoginId=null; render(); };
+
+  const editNoteBtn = document.getElementById("editNoteBtn"); if (editNoteBtn) editNoteBtn.onclick = () => { state.editingNote = !state.editingNote; render(); };
+  const saveNoteBtn = document.getElementById("saveNoteBtn"); if (saveNoteBtn) saveNoteBtn.onclick = () => { const v = document.getElementById("noteInput").value; updateClient(clientId, { coachNote: v }); state.editingNote=false; };
+
+  document.querySelectorAll(".doneBtn").forEach((b) => b.onclick = () => {
+    const row = b.closest(".setrow");
+    const wrap = b.closest("[data-progid]");
+    const progId = wrap.dataset.progid, rest = Number(wrap.dataset.rest);
+    const weight = row.querySelector(".weightInput").value, reps = row.querySelector(".repsInput").value;
+    b.classList.add("done"); b.disabled = true;
+    row.querySelectorAll("input").forEach((i)=>i.disabled=true);
+    if (!wrap._sets) wrap._sets = [];
+    wrap._sets.push({ weight, reps });
+    if (b.dataset.last === "1") {
+      const item = state.programs.find((p)=>p.id===progId);
+      state.modal = { type:"rpe", rpe:7, progId, sets: wrap._sets };
+      render();
+    } else {
+      startRest(rest);
+    }
+  });
+
+  const skipRest = document.getElementById("skipRest"); if (skipRest) skipRest.onclick = closeRest;
+
+  const rpeRange = document.getElementById("rpeRange"); if (rpeRange) rpeRange.oninput = (e) => { document.getElementById("rpeVal").textContent = e.target.value; state.modal.rpe = Number(e.target.value); };
+  const rpeSave = document.getElementById("rpeSave"); if (rpeSave) rpeSave.onclick = () => {
+    const m = state.modal;
+    const item = state.programs.find((p)=>p.id===m.progId);
+    addLog({ clientId, exerciseId: item.exerciseId, date: todayISO(), sets: m.sets, rpe: m.rpe });
+    state.modal = null; render();
+  };
+
+  document.querySelectorAll("[data-muscle]").forEach((b) => b.onclick = () => { state.openMuscle = state.openMuscle===b.dataset.muscle ? null : b.dataset.muscle; render(); });
+  document.querySelectorAll("[data-openex]").forEach((b) => b.onclick = () => { const ex = state.library.find((e)=>e.id===b.dataset.openex); state.modal = { type:"viewExercise", exercise: ex }; render(); });
+  const addExerciseBtn = document.getElementById("addExerciseBtn"); if (addExerciseBtn) addExerciseBtn.onclick = () => { state.modal = { type:"addExercise" }; render(); };
+  const editThisEx = document.getElementById("editThisEx"); if (editThisEx) editThisEx.onclick = () => { const ex = state.library.find((e)=>e.id===editThisEx.dataset.id); state.modal = { type:"editExercise", exercise: ex }; render(); };
+  const closeModal = document.getElementById("closeModal"); if (closeModal) closeModal.onclick = () => { state.modal = null; render(); };
+  const saveExercise = document.getElementById("saveExercise"); if (saveExercise) saveExercise.onclick = () => {
+    const data = { name: document.getElementById("exName").value, muscle: document.getElementById("exMuscle").value, videoUrl: document.getElementById("exVideo").value, note: document.getElementById("exNote").value };
+    if (state.modal.type === "addExercise") addExercise(data); else updateExercise(state.modal.exercise.id, data);
+    state.modal = null; render();
+  };
+
+  document.querySelectorAll("[data-editprog]").forEach((b) => b.onclick = () => { const item = state.programs.find((p)=>p.id===b.dataset.editprog); state.modal = { type:"editProgram", item }; render(); });
+  document.querySelectorAll("[data-delprog]").forEach((b) => b.onclick = () => deleteProgramItem(b.dataset.delprog));
+  const addExToProgram = document.getElementById("addExToProgram"); if (addExToProgram) addExToProgram.onclick = () => { state.modal = { type:"addProgram" }; render(); };
+  const saveProgram = document.getElementById("saveProgram"); if (saveProgram) saveProgram.onclick = () => {
+    const data = { exerciseId: document.getElementById("progExercise").value, sets: Number(document.getElementById("progSets").value), reps: Number(document.getElementById("progReps").value), rest: Number(document.getElementById("progRest").value), tempo: document.getElementById("progTempo").value };
+    if (state.modal.type === "addProgram") {
+      const dayItems = state.programs.filter((p)=>p.clientId===clientId && p.day===state.day);
+      addProgramItem({ clientId, day: state.day, order: dayItems.length+1, ...data });
+    } else {
+      updateProgramItem(state.modal.item.id, data);
+    }
+    state.modal = null; render();
+  };
+
+  const progressExSelect = document.getElementById("progressExSelect"); if (progressExSelect) progressExSelect.onchange = (e) => { state.progressExerciseId = e.target.value; render(); };
+
+  const ciSave = document.getElementById("ciSave"); if (ciSave) ciSave.onclick = () => {
+    const weight = document.getElementById("ciWeight").value;
+    if (!weight) return;
+    addCheckin({ clientId, date: todayISO(), weight, waist: document.getElementById("ciWaist").value, arm: document.getElementById("ciArm").value, thigh: document.getElementById("ciThigh").value, photoUrl: document.getElementById("ciPhoto").value });
+  };
+
+  const addMealBtn = document.getElementById("addMealBtn"); if (addMealBtn) addMealBtn.onclick = () => { state.modal = { type:"addMeal" }; render(); };
+  document.querySelectorAll("[data-editmeal]").forEach((b) => b.onclick = () => { const meal = state.meals.find((m)=>m.id===b.dataset.editmeal); state.modal = { type:"editMeal", meal }; render(); });
+  document.querySelectorAll("[data-delmeal]").forEach((b) => b.onclick = () => deleteMeal(b.dataset.delmeal));
+  const saveMeal = document.getElementById("saveMeal"); if (saveMeal) saveMeal.onclick = () => {
+    const data = {
+      mealType: document.getElementById("mealType").value,
+      name: document.getElementById("mealName").value,
+      calories: document.getElementById("mealCal").value, protein: document.getElementById("mealPro").value,
+      carb: document.getElementById("mealCarb").value, fat: document.getElementById("mealFat").value,
+      alt1Name: document.getElementById("alt1Name").value, alt1Cal: document.getElementById("alt1Cal").value,
+      alt1Pro: document.getElementById("alt1Pro").value, alt1Carb: document.getElementById("alt1Carb").value, alt1Fat: document.getElementById("alt1Fat").value,
+      alt2Name: document.getElementById("alt2Name").value, alt2Cal: document.getElementById("alt2Cal").value,
+      alt2Pro: document.getElementById("alt2Pro").value, alt2Carb: document.getElementById("alt2Carb").value, alt2Fat: document.getElementById("alt2Fat").value,
+    };
+    if (state.modal.type === "addMeal") addMeal({ clientId, day: state.day, ...data }); else updateMeal(state.modal.meal.id, data);
+    state.modal = null; render();
+  };
+  document.querySelectorAll("[data-swap]").forEach((b) => b.onclick = () => {
+    const meal = state.meals.find((m) => m.id === b.dataset.swap);
+    const versions = [{ name: meal.name, calories: meal.calories, protein: meal.protein, carb: meal.carb, fat: meal.fat }];
+    if (meal.alt1Name) versions.push({ name: meal.alt1Name, calories: meal.alt1Cal, protein: meal.alt1Pro, carb: meal.alt1Carb, fat: meal.alt1Fat });
+    if (meal.alt2Name) versions.push({ name: meal.alt2Name, calories: meal.alt2Cal, protein: meal.alt2Pro, carb: meal.alt2Carb, fat: meal.alt2Fat });
+    state.modal = { type:"swapMeal", mealId: meal.id, versions, current: state.mealSwap[meal.id] || 0 };
+    render();
+  });
+  document.querySelectorAll("[data-pickswap]").forEach((b) => b.onclick = () => { state.mealSwap[state.modal.mealId] = Number(b.dataset.pickswap); state.modal = null; render(); });
+  document.querySelectorAll("[data-eat]").forEach((b) => b.onclick = () => {
+    if (b.dataset.eaten === "1") return;
+    const meal = state.meals.find((m) => m.id === b.dataset.eat);
+    const idx = state.mealSwap[meal.id] || 0;
+    const versions = [{ name: meal.name, calories: meal.calories, protein: meal.protein, carb: meal.carb, fat: meal.fat },
+      meal.alt1Name ? { name: meal.alt1Name, calories: meal.alt1Cal, protein: meal.alt1Pro, carb: meal.alt1Carb, fat: meal.alt1Fat } : null,
+      meal.alt2Name ? { name: meal.alt2Name, calories: meal.alt2Cal, protein: meal.alt2Pro, carb: meal.alt2Carb, fat: meal.alt2Fat } : null].filter(Boolean);
+    const v = versions[idx] || versions[0];
+    addMealLog({ clientId, date: todayISO(), mealId: meal.id, name: v.name, calories: v.calories, protein: v.protein, carb: v.carb, fat: v.fat });
+  });
+}
+
+initListeners();
+</script>
+</body>
+</html>
